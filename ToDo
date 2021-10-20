@@ -1,0 +1,4 @@
+add middle ware for response model
+route auth guard by user role
+auto fill role when database was created
+add database constraint in service item
