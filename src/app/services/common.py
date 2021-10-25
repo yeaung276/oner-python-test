@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from core.models.baseModel import BaseModel, User
+from app.models.baseModel import BaseModel, User
 
-class BaseService:
+class CRUDService:
     def __init__(self,db:Session,user:User):
         self.db = db
         self.user = user

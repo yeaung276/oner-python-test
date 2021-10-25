@@ -1,13 +1,14 @@
-from fastapi import APIRouter,Depends,HTTPException,status
+from fastapi import APIRouter,Depends
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import DBAPIError, IntegrityError
+from app.models.baseModel import Role
 
-from core.models import get_db,Role,User
-from core.schemas.user import ChangePassword, CredentialReturn, Login, UserRegister
-from api.exceptions.auth import unauthorize_exception
-from utils.auth import check_auth
-from utils.hash import create_token
+from app.services.auth import AuthService
+from app.models import User
+from app.schemas.user import ChangePassword, CredentialReturn, Login, UserRegister
+from dependencies.auth import get_user
+from database import get_db
+
 
 auth = APIRouter(
     tags=['auth']
@@ -15,44 +16,26 @@ auth = APIRouter(
 
 @auth.post('/register')
 async def register(user:UserRegister, db:Session=Depends(get_db)):
-    try:
-        if db.query(Role).get(user.role_id)==None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='role not found')
-        new_user = User(**user.get_hashed())
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-    except IntegrityError:
-        raise HTTPException(status_code=404)
-    return 'done'
+    auth = AuthService(db,None)
+    return auth.register(user)
 
 @auth.post('/login')
 async def login(login:Login, db:Session=Depends(get_db)):
-    try:
-        user = db.query(User).filter(User.username==login.username).first()
-        if not user.verify(login.password):
-            raise unauthorize_exception
-    except:
-        raise unauthorize_exception
-    token = create_token({'username': user.username, 'role': user.role.name})
-    response = CredentialReturn(username=user.username, role=user.role.name, token=token)
-    return response
+    auth = AuthService(db,None)
+    token,user = auth.login(login.username,login.password)
+    return CredentialReturn(username=login.username,role=user.role,token=token)
 
 @auth.post('/change_password')
-async def changePassword(payload:ChangePassword, db:Session=Depends(get_db),user:User=Depends(check_auth(['admin']))):
-    if not user.verify(payload.old_password):
-        raise unauthorize_exception  
-    user.change_password(payload.new_password,db)
+async def changePassword(payload:ChangePassword, db:Session=Depends(get_db),user:User=Depends(get_user(['admin']))):
+    auth = AuthService(db,user)
+    auth.change_password(payload.new_password,payload.old_password)
     return {'message': 'done'}
 
 @auth.post('/token')
 async def token(form_data: OAuth2PasswordRequestForm = Depends(),db:Session=Depends(get_db)):
-    try:
-        user = db.query(User).filter(User.username==form_data.username).first()
-        if not user.verify(form_data.password):
-            raise unauthorize_exception
-    except:
-        raise unauthorize_exception
-    token = create_token({'username': user.username, 'role': user.role.name})
-    response = {"access_token": token, "token_type": "bearer"}
-    return response
+    auth = AuthService(db,None)
+    token,_ = auth.login(form_data.username,form_data.password)
+    return {
+        'access_token': token,
+        'token_type': 'bearer'
+    }

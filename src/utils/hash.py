@@ -1,6 +1,5 @@
-from typing import Optional
-from datetime import datetime, timedelta
 import os
+from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
@@ -15,7 +14,9 @@ def hash(password):
 def verify(plain_passw, hash_passw):
     return pwd_context.verify(plain_passw, hash_passw)
 
-def create_token(data: dict, expires_delta: Optional[timedelta]=timedelta(hours=12)):
+def create_token(data: dict):
+    JWT_EXPIRY_MINUTE = os.environ.get('JWT_EXPIRY_MINUTE')
+    expires_delta = timedelta(minutes=int(JWT_EXPIRY_MINUTE))
     to_encode = data.copy()
     expire = datetime.utcnow() + expires_delta
     to_encode.update({'exp': expire})
